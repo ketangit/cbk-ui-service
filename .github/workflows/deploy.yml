@@ -1,0 +1,147 @@
+# ------------------------------------------------------------------------------
+# cbk-ui-service — Build (Next.js static export) + deploy to Firebase Hosting.
+#
+# Security hardening applied:
+#   * Every third-party action is pinned to a full 40-char commit SHA
+#     (the version tag in the trailing comment is documentation only).
+#   * Default GITHUB_TOKEN permissions are denied at the top level; each job
+#     opts in to the minimum scopes it needs (least privilege).
+#   * checkout runs with persist-credentials: false so the token is not written
+#     to .git/config for later steps.
+#   * Concurrency cancels superseded runs on the same ref.
+#   * Pull requests deploy to an ephemeral PREVIEW channel; the LIVE channel is
+#     reached only on push to main, behind the `production` environment (where
+#     you can require reviewers / branch protection).
+#   * Only the three actions actually required are used, minimizing supply-chain
+#     surface; the Firebase service-account JSON is the sole long-lived secret.
+# ------------------------------------------------------------------------------
+name: Deploy UI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Deny everything by default; jobs opt in to the minimum they need.
+permissions: {}
+
+concurrency:
+  group: deploy-ui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, lint & unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Unit tests
+        run: npm run test
+
+  deploy-preview:
+    name: Build & deploy preview channel (PRs)
+    # Skip forks: they cannot access secrets and must not receive the SA.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write # post the preview URL as a PR comment
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static export
+        run: npm run build
+        env:
+          NODE_ENV: production
+          # Same-origin in prod: Firebase Hosting rewrites /api/** to Cloud Run,
+          # so the bundle needs no backend URL (API_BASE defaults to "").
+
+      - name: Deploy to Firebase Hosting preview channel
+        uses: FirebaseExtended/action-hosting-deploy@0cbcac4740c2bfb00d632f0b863b57713124eb5a # v0.9.0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_DEPLOY_SA }}
+          projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
+          expires: 7d
+
+  deploy-live:
+    name: Build & deploy live channel (main)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://craftedbyk.com
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static export
+        run: npm run build
+        env:
+          NODE_ENV: production
+          # Same-origin in prod: Firebase Hosting rewrites /api/** to Cloud Run,
+          # so the bundle needs no backend URL (API_BASE defaults to "").
+
+      - name: Deploy to Firebase Hosting live channel
+        uses: FirebaseExtended/action-hosting-deploy@0cbcac4740c2bfb00d632f0b863b57713124eb5a # v0.9.0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_DEPLOY_SA }}
+          projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
+          channelId: live
