@@ -23,6 +23,7 @@
     "test:e2e:install": "playwright install --with-deps"
   },
   "dependencies": {
+    "firebase": "12.14.0",
     "next": "15.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.3.5",
+    "@playwright/test": "1.51.1",
     "@testing-library/jest-dom": "6.6.3",
     "@testing-library/react": "16.2.0",
     "@types/node": "22.13.10",
@@ -40,9 +42,8 @@
     "eslint": "9.22.0",
     "eslint-config-next": "15.3.0",
     "eslint-config-prettier": "10.1.1",
-    "prettier": "3.5.3",
-    "@playwright/test": "1.51.1",
     "jsdom": "26.0.0",
+    "prettier": "3.5.3",
     "typescript": "5.8.2",
     "vitest": "3.0.9"
   }
