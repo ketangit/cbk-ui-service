@@ -57,33 +57,33 @@ Three jobs, default-deny token permissions, all actions pinned to commit SHAs:
 - **deploy-live** (push to `main`): builds and deploys to the **live** channel
   behind the `production` GitHub Environment.
 
-### Pinned actions
+## Pinned actions
 
 | Action                                 | Version | Commit SHA                                 |
 | -------------------------------------- | ------- | ------------------------------------------ |
-| actions/checkout                       | v4.2.2  | `11bd71901bbe5b1630ceea73d27597364c9af683` |
-| actions/setup-node                     | v4.4.0  | `49933ea5288caeca8642d1e84afbd3f7d6820020` |
+| actions/checkout                       | v5.0.1  | `93cb6efe18208431cddfb8368fd83d5badbf9bfd` |
+| actions/setup-node                     | v5.0.0  | `a0853c24544627f65ddf259abe73b1d18a591444` |
 | FirebaseExtended/action-hosting-deploy | v0.9.0  | `0cbcac4740c2bfb00d632f0b863b57713124eb5a` |
 
 > To bump an action: change the SHA **and** the trailing `# vX.Y.Z` comment
 > together. Never pin to a tag or branch.
 
-### Required repository configuration
+## Required repository configuration
 
 **Secrets** (Settings → Secrets and variables → Actions → Secrets):
 
-| Secret                                     | Purpose                                                   |
-| ------------------------------------------ | --------------------------------------------------------- |
-| `FIREBASE_SERVICE_ACCOUNT_CRAFTEDBYK_PROD` | Firebase deploy service-account **JSON** (Hosting Admin). |
+| Secret                | Purpose                                                   |
+| --------------------- | --------------------------------------------------------- |
+| `FIREBASE_DEPLOY_SA`  | Firebase deploy service-account **JSON** (Hosting Admin). |
+| `FIREBASE_PROJECT_ID` | Firebase project ID (e.g. `craftedbyk-prod`).             |
 
-> Generate via the Firebase console (Project settings → Service accounts) or
-> `firebase init hosting:github`. Grant only the Hosting deploy role.
+> Generate the service account via the Firebase console (Project settings →
+> Service accounts) or `firebase init hosting:github`. Grant only the Hosting
+> deploy role.
 
-**Variables** (Settings → Secrets and variables → Actions → Variables):
-
-| Variable                   | Example                      |
-| -------------------------- | ---------------------------- |
-| `NEXT_PUBLIC_API_BASE_URL` | `https://api.craftedbyk.com` |
+No build-time API URL is required: production is **same-origin** (Firebase
+Hosting rewrites `/api/**` to Cloud Run), so the bundle ships with an empty
+`API_BASE`. There are no Actions **Variables** to configure.
 
 **Environment**: create a `production` environment and (recommended) require a
 reviewer and restrict it to the `main` branch.
@@ -92,24 +92,31 @@ reviewer and restrict it to the `main` branch.
 
 ```
 src/
-  app/
-    (marketing)/        # public site (/, /shop, /about ...)
-    (app)/dashboard/    # authenticated app shell
+  app/                  # App Router pages (static export)
+    page.tsx            # home
+    shop/page.tsx       # product listing
+    product/page.tsx    # product detail
+    designer/page.tsx   # puzzle designer
+    cart/page.tsx       # cart
     layout.tsx          # root layout
+    globals.css         # global styles (plain CSS custom properties)
   components/
-    ui/                 # shadcn primitives (button, ...)
-    layout/             # header, footer, shell
-    features/           # composed, domain-specific components
+    SiteNav.tsx         # top navigation
+    ProductCard.tsx     # product tile
+    Puzzle3D.tsx        # Three.js 3D puzzle render
+    PuzzlePreview.tsx   # puzzle preview
+    CartContext.tsx     # React context cart state
   lib/
-    api/                # openapi-fetch client + zod schemas
-    utils.ts, constants.ts
-  hooks/                # custom React hooks
-  stores/               # Zustand stores
-  types/                # shared TS types + generated api.d.ts
-  styles/               # globals.css (Tailwind v4)
-config/                 # site config, nav, zod env parsing
-public/                 # static assets, fonts, images
+    api.ts              # hand-written fetch client (no codegen)
+    types.ts            # hand-maintained shared TS types
+    cart.ts             # cart helpers
+    palette.ts          # color palette helpers
+public/                 # static assets (robots.txt, fonts/, images/)
 tests/
   unit/                 # Vitest + Testing Library
   e2e/                  # Playwright
 ```
+
+> Styling is plain CSS (custom properties in `globals.css`) — no Tailwind/shadcn.
+> The API client and types are hand-written; there is no `openapi-fetch`, Zod,
+> Zustand, or codegen despite what the Stack table historically implied.
