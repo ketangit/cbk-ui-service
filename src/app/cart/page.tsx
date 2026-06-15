@@ -1,10 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useCart } from '@/components/CartContext';
 import { createOrder } from '@/lib/api';
 import { formatPrice } from '@/lib/cart';
+import {
+  isAuthConfigured,
+  onAuthChange,
+  signInWithGoogle,
+  signOutUser,
+  type User,
+} from '@/lib/firebase';
 import { MATERIAL_LABELS, type OrderConfirmation } from '@/lib/types';
 
 export default function CartPage() {
@@ -21,11 +28,31 @@ export default function CartPage() {
   const [error, setError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<OrderConfirmation | null>(null);
 
+  // Sign-in is required to place an order only when Firebase Auth is configured
+  // (production). Locally, with no config, the gate is skipped.
+  const requireLogin = isAuthConfigured();
+  const [user, setUser] = useState<User | null>(null);
+  useEffect(() => onAuthChange(setUser), []);
+  const canCheckout = !requireLogin || Boolean(user);
+
   const setField = (key: keyof typeof form, value: string) =>
     setForm((f) => ({ ...f, [key]: value }));
 
+  const signIn = async () => {
+    setError(null);
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
   const checkout = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCheckout) {
+      setError('Please sign in to place your order.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -174,8 +201,28 @@ export default function CartPage() {
               onChange={(e) => setField('country', e.target.value)}
             />
           </label>
+          {requireLogin &&
+            (user ? (
+              <div
+                className="row"
+                style={{ justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <span className="muted">Signed in as {user.email}</span>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => void signOutUser()}
+                >
+                  Sign out
+                </button>
+              </div>
+            ) : (
+              <button type="button" className="button" onClick={() => void signIn()}>
+                Sign in with Google to place your order
+              </button>
+            ))}
           {error && <div className="error">{error}</div>}
-          <button className="button" type="submit" disabled={submitting}>
+          <button className="button" type="submit" disabled={submitting || !canCheckout}>
             {submitting ? 'Placing order…' : `Place order · ${formatPrice(cart.totalCents)}`}
           </button>
           <p className="muted" style={{ margin: 0 }}>

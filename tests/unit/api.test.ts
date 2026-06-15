@@ -14,14 +14,12 @@ describe('api client', () => {
         new Response(JSON.stringify({ seedUsed: 42, piecePaths: [] }), { status: 200 }),
       );
     await generatePuzzle(DEFAULT_PARAMS);
-    expect(mock).toHaveBeenCalledWith(
-      '/api/puzzle/generate',
-      expect.objectContaining({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
-    const body = JSON.parse((mock.mock.calls[0]![1] as RequestInit).body as string);
+    const [url, init] = mock.mock.calls[0]! as [string, RequestInit];
+    expect(url).toBe('/api/puzzle/generate');
+    expect(init.method).toBe('POST');
+    // Headers are now centralised through apiFetch as a Headers instance.
+    expect(new Headers(init.headers).get('Content-Type')).toBe('application/json');
+    const body = JSON.parse(init.body as string);
     expect(body.ncols).toBe(DEFAULT_PARAMS.ncols);
   });
 
