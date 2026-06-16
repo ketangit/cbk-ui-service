@@ -83,7 +83,36 @@ Three jobs, default-deny token permissions, all actions pinned to commit SHAs:
 
 No build-time API URL is required: production is **same-origin** (Firebase
 Hosting rewrites `/api/**` to Cloud Run), so the bundle ships with an empty
-`API_BASE`. There are no Actions **Variables** to configure.
+`API_BASE`.
+
+**Variables** (Settings → Secrets and variables → Actions → Variables) — turn on
+Firebase App Check (reCAPTCHA v3) + Auth. These are `NEXT_PUBLIC_*`, baked into
+the client bundle at build time and **public by design** (Firebase web config +
+reCAPTCHA site key are not secrets), so they are stored as **variables**, not
+secrets. They are injected into the `npm run build` step of both the preview and
+live deploys. Leave them unset to ship the app in its ungated mode.
+
+| Variable                           | Purpose                                              |
+| ---------------------------------- | ---------------------------------------------------- |
+| `NEXT_PUBLIC_FIREBASE_API_KEY`     | Firebase web app API key.                            |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Auth domain, e.g. `craftedbyk-prod.firebaseapp.com`. |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID`  | Firebase project ID (e.g. `craftedbyk-prod`).        |
+| `NEXT_PUBLIC_FIREBASE_APP_ID`      | Firebase web app ID (`1:NNN:web:…`).                 |
+| `NEXT_PUBLIC_RECAPTCHA_SITE_KEY`   | reCAPTCHA **v3** site key backing App Check.         |
+
+Set them with the `gh` CLI:
+
+```bash
+gh variable set NEXT_PUBLIC_FIREBASE_API_KEY --body "..."
+gh variable set NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN --body "craftedbyk-prod.firebaseapp.com"
+gh variable set NEXT_PUBLIC_FIREBASE_PROJECT_ID --body "craftedbyk-prod"
+gh variable set NEXT_PUBLIC_FIREBASE_APP_ID --body "..."
+gh variable set NEXT_PUBLIC_RECAPTCHA_SITE_KEY --body "..."
+```
+
+> Preview channels are gated too: add each ephemeral `*.web.app` preview domain
+> to the reCAPTCHA allowlist and the backend App Check/CORS config, or gated
+> calls (e.g. order placement) will fail on previews.
 
 **Environment**: create a `production` environment and (recommended) require a
 reviewer and restrict it to the `main` branch.
@@ -108,6 +137,7 @@ src/
     CartContext.tsx     # React context cart state
   lib/
     api.ts              # hand-written fetch client (no codegen)
+    firebase.ts         # browser-only App Check (reCAPTCHA v3) + Auth wiring
     types.ts            # hand-maintained shared TS types
     cart.ts             # cart helpers
     palette.ts          # color palette helpers
